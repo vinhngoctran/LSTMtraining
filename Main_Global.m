@@ -262,7 +262,7 @@ load('E:\PUB_realistic/RESULTS2\R2_Nearing_obs.mat', 'NearingObs')
 Qsim = ncread('E:\PUB_realistic/Data/RegionalPaper/Thomas/preds.nc','LSTM');
 Qobs = ncread('E:\PUB_realistic/Data/RegionalPaper/Thomas/preds.nc','obs');
 Time = ncread('E:\PUB_realistic/Data/RegionalPaper/Thomas/preds.nc','time');
-TimeDATE = datetime(1988,1,1)+days(Time-1);
+TimeDATE = datetime(1988,1,1)+days(Time);
 StationID = ncread('E:\PUB_realistic/Data/RegionalPaper/Thomas/preds.nc','station_id');
 InfoGB = xlsread('E:\PUB_realistic/Data\RegionalPaper\Thomas\Info\data\CAMELS_GB_topographic_attributes.csv');
 
