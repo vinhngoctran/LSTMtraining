@@ -69,13 +69,14 @@ for i=1:numel(SUBID)
                     Q_AI(:,k) = NearingSim{idx_overlap}(:,1);
                     Q_obs(:,k) = mean([ObsCARAVAN,ObsGRDC],2,'omitnan');
                     idname(k,:) = string(SUBID{i}.attributes.gauge_id{j});
+                    Qobscan(:,:,k) = [ObsCARAVAN,ObsGRDC];
                 end
             end
         end
     end
 end
 
-save('Results_Global\R1_meta_AI.mat',"idname","Q_AI","overlap_global","DAteAI",'Q_obs');
+save('Results_Global2\R1_meta_AI.mat',"idname","Q_AI","overlap_global","DAteAI",'Q_obs',"Qobscan");
 
 
 %% Run SIMHYD-Snow with other forcing data
@@ -186,6 +187,7 @@ end
 % 1: Compute NSE, KGE, RMSE, NSEevent, KGEevent, RMSEevent, PE, T2P
 clear all; clc
 load('Results_Global\R1_meta_AI.mat',"idname","Q_AI","overlap_global","DAteAI",'Q_obs');
+DAteAI = DAteAI-days(1); % shift -1 day for right-labelling (https://zenodo.org/records/10397664)
 TimeTestVal = [datetime(2005,1,1),datetime(2014,1,1)];
 idx = find(DAteAI==TimeTestVal(2));
 filename = ['E:\PUB\3.Results/SCE/',idname{1},'.mat'];
@@ -197,7 +199,8 @@ for i=1:size(Q_obs,2)
     i
     filename = ['E:\PUB\3.Results/SCE/',idname{i},'.mat'];load(filename,'Qopt')
     [NSE(i,1),KGE(i,1),RMSE(i,1),PE(i,1),NSE_event(i,1)] = computemetric(Qopt(idx1:end),Q_obs(idx1:end,i));
-    [NSE(i,2),KGE(i,2),RMSE(i,2),PE(i,2),NSE_event(i,2)] = computemetric(Q_AI(idx:idy,i),Q_obs(idx1:end,i));    
+    [NSE(i,2),KGE(i,2),RMSE(i,2),PE(i,2),NSE_event(i,2)] = computemetric(Q_AI(idx:idy,i),Q_obs(idx1:end,i)); 
+    clearvars Smodel
     for j=1:6
         clearvars y_pred y_true
         try
@@ -205,7 +208,7 @@ for i=1:size(Q_obs,2)
         if exist(Filename)
         load(Filename)
         [NSE(i,2+j),KGE(i,2+j),RMSE(i,2+j),PE(i,2+j),NSE_event(i,2+j)] = computemetric(y_pred,y_true);
-        Smodel{i,1}(:,j) = y_pred;
+        Smodel(:,j) = y_pred;
         else
             KGE(i,2+j)=NaN;RMSE(i,2+j)=NaN;PE(i,2+j)=NaN;NSE(i,2+j) = NaN;
         end
@@ -213,12 +216,19 @@ for i=1:size(Q_obs,2)
             KGE(i,2+j)=NaN;RMSE(i,2+j)=NaN;PE(i,2+j)=NaN;NSE(i,2+j) = NaN;
         end
     end
+    filename = ['Results_Global/Smodel/',idname{i,1},'.mat'];
+    try
+    save(filename,"Smodel")
+    catch
+    end
 end
-save('Results_Global\R3_Comparison.mat',"PE","RMSE","KGE","NSE",'NSE_event')
-save('Results_Global\Smodel.mat','Smodel')
+save('Results_Global2\R3_Comparison.mat',"PE","RMSE","KGE","NSE",'NSE_event')
+% save('Results_Global\Smodel.mat','Smodel')
+
 %% Compute flood peak error
 clear all; clc
 load('Results_Global\R1_meta_AI.mat',"idname","Q_AI","overlap_global","DAteAI",'Q_obs');
+DAteAI = DAteAI-days(1); % shift -1 day for right-labelling (https://zenodo.org/records/10397664)
 TimeTestVal = [datetime(2005,1,1),datetime(2014,1,1)];
 idx = find(DAteAI==TimeTestVal(2));
 filename = ['E:\PUB\3.Results/SCE/',idname{1},'.mat'];
@@ -230,8 +240,8 @@ for i=1:size(Q_obs,2)
     i
     filename = ['E:\PUB\3.Results/SCE/',idname{i},'.mat'];load(filename,'Qopt')   
     try
-    PE{i,1}(:,1) = computemetric_PE(Qopt(idx1:end),Q_obs(idx1:end,i));
-    PE{i,1}(:,2) = computemetric_PE(Q_AI(idx:idy,i),Q_obs(idx1:end,i));
+    PE{i,1}(:,1) = computemetric_PE(Qopt(idx1:end),Q_obs(idx1:end,i)); % Peak error for SIMHYD
+    PE{i,1}(:,2) = computemetric_PE(Q_AI(idx:idy,i),Q_obs(idx1:end,i)); % Peak error for Gooole model
     
     
     for j=1:6
@@ -247,7 +257,7 @@ for i=1:size(Q_obs,2)
 
     end
 end
-save('Results_Global\R4_Comparison_PE.mat',"PE")
+save('Results_Global2\R4_Comparison_PE.mat',"PE")
 
 
 %% Compare Global vs Regional: Ungauged basins
@@ -256,7 +266,7 @@ save('Results_Global\R4_Comparison_PE.mat',"PE")
 % https://hess.copernicus.org/articles/25/5517/2021/#section6
 clear; clc
 load('E:\PUB_realistic/RESULTS2\R3_Nearing_sim.mat',"BasinNearing","NearingSim","StartTime");
-load('E:\PUB_realistic/RESULTS2\R2_Nearing_obs.mat', 'NearingObs')
+load('E:\PUB_realistic/RESULTS4\R2_Nearing_obs.mat', 'NearingObs')
 
 % Read Thomas data: CAMELS-GB
 Qsim = ncread('E:\PUB_realistic/Data/RegionalPaper/Thomas/preds.nc','LSTM');
@@ -271,10 +281,11 @@ for i=1:numel(StationID)
     InforSelec(i,:)=InfoGB(idx,:);
 end
 % save('RESULTS2\R8_Regional_GB.mat','Qobs','Qsim',"TimeDATE","StationID",'InforSelec');
-
+StartTime_nearing = StartTime(1)-days(1); % shift -1 day for right-labelling (https://zenodo.org/records/10397664)
 k=0;
 for i=1:size(StationID,1)
-     [overlapdata(i,1),Data, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime(1),Qsim(:,i),Qobs(:,i),TimeDATE,[InforSelec(i,3:4),InforSelec(i,8)]);
+    
+     [overlapdata(i,1),Data, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime_nearing,Qsim(:,i),Qobs(:,i),TimeDATE,[InforSelec(i,3:4),InforSelec(i,8)]);
      if ~isnan(overlapdata(i,1))
         k=k+1
         DataAll{k,1} = Data;
@@ -282,25 +293,27 @@ for i=1:size(StationID,1)
         AREA_all(k,:) = AREA;
      end
 end
-save('Results_Global\R2_Regional_GB_ungauged_.mat','Qobs','Qsim',"TimeDATE","StationID",'InforSelec','DataAll','OverlapInfo','AREA_all','overlapdata');
+save('Results_Global2\R2_Regional_GB_ungauged_.mat','Qobs','Qsim',"TimeDATE","StationID",'InforSelec','DataAll','OverlapInfo','AREA_all','overlapdata');
 
 % Read Kratzert data: CAMELS-US - Ungauged basins: lstm_seed111
 % Run 'Read_KratzertData2.py' to load data
 clear; clc
 load('E:\PUB_realistic/RESULTS2\R3_Nearing_sim.mat',"BasinNearing","NearingSim","StartTime");
-load('E:\PUB_realistic/RESULTS2\R2_Nearing_obs.mat', 'NearingObs')
+load('E:\PUB_realistic/RESULTS4\R2_Nearing_obs.mat', 'NearingObs')
 load('E:\PUB_realistic/RESULTS2\R8_Regional_US.mat')  
 InfoUS = readtable('E:\PUB_realistic\Data\camels\camels_attributes_v2.0/camels_topo.txt');
 InfoUS = table2array(InfoUS);
 Basin = load('E:\PUB_realistic/Data/single-basin-vs-regional-model/basin_lists/531_basin_list.txt');
 Time = datetime(Time,'InputFormat','yyyy/MM/dd');
+StartTime_nearing = StartTime(1)-days(1); % shift -1 day for right-labelling (https://zenodo.org/records/10397664)
 for i=1:numel(Basin)
     idx = find(InfoUS(:,1)==Basin(i));
     InforSelec(i,:)=InfoUS(idx,:);
 end
+
 k=0;
 for i=1:size(InforSelec,1)
-     [overlapdata_US(i,1),Data, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime(1),all_qsim(i,:),all_qobs(i,:),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
+     [overlapdata_US(i,1),Data, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime_nearing,all_qsim(i,:),all_qobs(i,:),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
      if ~isnan(overlapdata_US(i,1))
         k=k+1;
         DataAll{k,1} = Data;
@@ -308,16 +321,17 @@ for i=1:size(InforSelec,1)
         AREA_all(k,:) = AREA;
      end
 end
-save('Results_Global\R2_Regional_US_ungauged.mat','all_qsim','all_qobs','InforSelec','Time','DataAll','OverlapInfo','AREA_all','overlapdata_US');  
+save('Results_Global2\R2_Regional_US_ungauged.mat','all_qsim','all_qobs','InforSelec','Time','DataAll','OverlapInfo','AREA_all','overlapdata_US');  
 
 
 % CONUS - Gauged basins
 clear; clc
 load('E:\PUB_realistic/RESULTS2\R3_Nearing_sim_gauged.mat',"BasinNearing","NearingSim","StartTime");
-load('E:\PUB_realistic/RESULTS2\R2_Nearing_obs.mat', 'NearingObs')
+load('E:\PUB_realistic/RESULTS4\R2_Nearing_obs.mat', 'NearingObs')
 load('Data/R1_Krat_data.mat')
 load('Data/R1_Krat_meta.mat');
 [AlllCamel,camelinfo] = loadcamel();
+StartTime_nearing = StartTime(1)-days(1); % shift -1 day for right-labelling (https://zenodo.org/records/10397664)
 for i=1:size(Basins,1)
     
     idx = find(camelinfo(:,1)==str2num(Basins(i,:)));
@@ -327,8 +341,8 @@ Time = [datetime(1989,10,1):days(1):datetime(1999,9,30)]';
 %
 k=0;
 for i=1:size(InforSelec,1)
-     [overlapdata_US(i,1),Data_M, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime(1),mean(Kratz_M_SIM(:,:,i),2),Kratz_M_OBS(:,1,i),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
-     [overlapdata_US(i,1),Data_S, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime(1),mean(Kratz_S_SIM(:,:,i),2),Kratz_M_OBS(:,1,i),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
+     [overlapdata_US(i,1),Data_M, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime_nearing,mean(Kratz_M_SIM(:,:,i),2),Kratz_M_OBS(:,1,i),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
+     [overlapdata_US(i,1),Data_S, AREA] = findoverlapdata(NearingObs,BasinNearing,NearingSim,StartTime_nearing,mean(Kratz_S_SIM(:,:,i),2),Kratz_M_OBS(:,1,i),Time,[InforSelec(i,2:3), InforSelec(i,6)]);
      
      if ~isnan(overlapdata_US(i,1))
         k=k+1
@@ -339,10 +353,10 @@ for i=1:size(InforSelec,1)
      end
 end
 
-save('Results_Global\R2_Regional_US_gauged.mat','InforSelec','Time','DataAll','OverlapInfo','AREA_all','overlapdata_US');  
+save('Results_Global2\R2_Regional_US_gauged.mat','InforSelec','Time','DataAll','OverlapInfo','AREA_all','overlapdata_US');  
 
 
 %% FIGURE
 plot_figure_2
 plot_figure_3
-plot_figure_4
+plot_figure_4_v2
